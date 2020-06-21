@@ -159,6 +159,8 @@ fn verify_blockchain(blockchain: &Vec<Block>) -> Result<HashMap<Address, Amount>
     // TODO 1
     // Create a new HashMap<Address, Amount> and expected_prev_hash to store
     // previous hashes to check.
+    let mut balances: HashMap<Address, Amount> = HashMap::new();
+    let mut expected_prev_hash = 0;
 
     // This is a special for loop which will update two variables at each
     // iteration:
@@ -175,23 +177,52 @@ fn verify_blockchain(blockchain: &Vec<Block>) -> Result<HashMap<Address, Amount>
         // does not exist at all, or it has less than the amount of billcoins
         // it is trying to send.  An address with 5 billcoins cannot send 10 to
         // somebody else!
+        if b.from_addr != 0 {
+            let num_billcoins_result = balances.get(&b.from_addr);
+            match num_billcoins_result {
+                Some(num_billcoins) => {
+                    if num_billcoins < &b.amount {
+                        return Err(format!("Line {}: Account {:#016x} only has {} billcoins; it cannot send {}",
+                                           j,
+                                           b.from_addr,
+                                           num_billcoins,
+                                           b.amount));
+                    }
+                },
+                None => {
+                    return Err(format!("Line {}: Account {:#016x} has 0 billcoins; it cannot send {}",
+                                       j,
+                                       b.from_addr,
+                                       b.amount));
+                }
+                
+            }
+            
+        }
 
 
         // TODO 2
 
         // Users can never send any billcoins _TO_ address 0x0 - it is only used as a source.
         // If the to_address is 0, raise an error indicating this.
+        if b.to_addr == 0 {
+            return Err("address cannot and should not be 0x0".to_owned());
+        }
         
         // TODO 3
 
         // Check to see if the prev_hash matches the expected previous hash
         // The first prev_hash should always be 0x0.
         // If not, return an error
+        if b.prev_hash != expected_prev_hash {
+            return Err("prev hash not equal to expected prev hash".to_owned());
+        }
 
         // TODO 4
         
         // Store the hash of this block as the expected previous hash for the
         // next block (iteration of the for loop)
+        expected_prev_hash = b.prev_hash;
         
         // TODO 5
         
@@ -201,14 +232,26 @@ fn verify_blockchain(blockchain: &Vec<Block>) -> Result<HashMap<Address, Amount>
         // No coins should ever be subtracted from the 0x0 address
         // HINT: You may find .cloned() and .unwrap_or() helpful when dealing
         // with the hashmap!
+
+        let old_balance_from: Amount = *balances.get(&b.from_addr).unwrap_or(&0);
+        let old_balance_to: Amount = match balances.get(&b.to_addr) {
+            Some(v) => *v,
+            None => 0
+        };
+        
+        if b.from_addr != 0 {
+            let new_from_amount = old_balance_from - b.amount;
+            balances.insert(b.from_addr, new_from_amount);
+        }
+        let new_to_amount = old_balance_to + b.amount;
+        balances.insert(b.to_addr, new_to_amount);
         
     }
 
     // TODO 6
     
     // Return hashmap of balances if all is correct
-    Err("derp".to_string())
-
+    Ok(balances)
 }
 
 // Read and verify blockchain.
